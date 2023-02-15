@@ -361,3 +361,12 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Serverless Framework build artifacts
+**/.serverless
+**/node_modules
+**/package.json
+**/package-lock.json
+
+# AWS Lambda deployment packages
+*.zip
