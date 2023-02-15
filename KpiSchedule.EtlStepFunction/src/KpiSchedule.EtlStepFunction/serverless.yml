@@ -1,0 +1,85 @@
+service: kpi-schedule-etl-steps
+app: kpi-schedule
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: dotnet6
+  region: eu-central-1
+  memorySize: 1024
+  timeout: 900
+
+  # Lambda function's IAM Role
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "s3:ListBucket"
+          Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
+        - Effect: "Allow"
+          Action:
+            - "s3:PutObject"
+          Resource:
+            Fn::Join:
+              - ""
+              - - "arn:aws:s3:::"
+                - "Ref" : "ServerlessDeploymentBucket"
+                - "/*"
+
+# Service wide environment variables
+environment:
+  
+package:
+  artifact: deploy-package.zip
+
+functions: 
+  parse-roz-kpi-group-schedules:
+    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::ParseRozKpiGroupSchedulesTask
+    
+  parse-roz-kpi-teacher-schedules:
+    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::ParseRozKpiTeacherSchedulesTask
+    
+resources:
+  Resources:
+    GroupSchedulesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: groupName
+          AttributeType: S
+        - AttributeName: scheduleId
+          AttributeType: S
+        TableName: RozKpiGroupSchedules
+        KeySchema:
+        - AttributeName: scheduleId
+          KeyType: HASH
+        GlobalSecondaryIndexes:
+        - IndexName: groupName-index
+          KeySchema:
+          - AttributeName: groupName
+            KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
+        BillingMode: PAY_PER_REQUEST
+
+    TeacherSchedulesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: teacherName
+          AttributeType: S
+        - AttributeName: scheduleId
+          AttributeType: S
+        TableName: RozKpiTeacherSchedules
+        KeySchema:
+        - AttributeName: scheduleId
+          KeyType: HASH
+        GlobalSecondaryIndexes:
+        - IndexName: teacherName-index
+          KeySchema:
+          - AttributeName: teacherName
+            KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
+        BillingMode: PAY_PER_REQUEST
