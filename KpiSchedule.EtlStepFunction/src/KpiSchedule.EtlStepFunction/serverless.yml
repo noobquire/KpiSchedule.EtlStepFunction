@@ -31,7 +31,7 @@ provider:
 environment:
   
 package:
-  artifact: deploy-package.zip
+  artifact: bin/deploy-package.zip
 
 functions: 
   parse-roz-kpi-group-schedules:
