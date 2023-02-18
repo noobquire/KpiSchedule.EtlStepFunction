@@ -39,6 +39,12 @@ functions:
     
   parse-roz-kpi-teacher-schedules:
     handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::ParseRozKpiTeacherSchedulesTask
+
+  write-group-schedules-to-dynamodb:
+    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::PutGroupSchedulesToDynamoDbTask
+
+  write-teacher-schedules-to-dynamodb:
+    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::PutTeacherSchedulesToDynamoDbTask
     
 resources:
   Resources:
