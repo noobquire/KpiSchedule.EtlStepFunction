@@ -22,8 +22,6 @@ public class SchedulesEtlTasks
 {
     private readonly GroupSchedulesEtlService groupSchedulesEtlService;
     private readonly TeacherSchedulesEtlService teacherSchedulesEtlService;
-    private readonly IList<string> groupPrefixesToParse;
-    private readonly IList<string> teacherPrefixesToParse;
 
     /// <summary>
     /// Default constructor that Lambda will invoke.
@@ -49,14 +47,12 @@ public class SchedulesEtlTasks
             .AddScoped<TeacherSchedulesEtlService>()
             .BuildServiceProvider();
 
-        groupPrefixesToParse = config.GetRequiredSection("GroupPrefixesToParse").Get<IList<string>>()!;
-        teacherPrefixesToParse = config.GetRequiredSection("TeacherPrefixesToParse").Get<IList<string>>()!;
         groupSchedulesEtlService = serviceProvider.GetRequiredService<GroupSchedulesEtlService>();
         teacherSchedulesEtlService = serviceProvider.GetRequiredService<TeacherSchedulesEtlService>();
     }
 
     [LambdaSerializer(typeof(SchedulesJsonSerializer))]
-    public async Task<SchedulesEtlOutput<RozKpiApiGroupSchedule>> ParseRozKpiGroupSchedulesTask()
+    public async Task<SchedulesEtlOutput<RozKpiApiGroupSchedule>> ParseRozKpiGroupSchedulesTask(IList<string> groupPrefixesToParse)
     {
         var groupSchedules = await groupSchedulesEtlService.ScrapeGroupSchedules(groupPrefixesToParse);
 
@@ -71,7 +67,7 @@ public class SchedulesEtlTasks
     }
 
     [LambdaSerializer(typeof(SchedulesJsonSerializer))]
-    public async Task<SchedulesEtlOutput<RozKpiApiTeacherSchedule>> ParseRozKpiTeacherSchedulesTask()
+    public async Task<SchedulesEtlOutput<RozKpiApiTeacherSchedule>> ParseRozKpiTeacherSchedulesTask(IList<string> teacherPrefixesToParse)
     {
         var teacherSchedules = await teacherSchedulesEtlService.ScrapeTeacherSchedules(teacherPrefixesToParse);
 
