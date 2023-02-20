@@ -13,6 +13,9 @@ jobs:
       matrix:
         node-version: [16.x]
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    
     - name: Setup .NET 6
       uses: actions/setup-dotnet@v1
       with:
@@ -20,6 +23,9 @@ jobs:
         
     - name: Install AWS Lambda tools for dotnet CLI
       run: dotnet tool install -g Amazon.Lambda.Tools --framework net6.0
+      
+    - name: CD to project folder
+      run: cd KpiSchedule.EtlStepFunction
       
     - name: Build deployment package
       run: dotnet lambda package -c Release --framework net6.0 --output-package bin/deploy-package.zip
