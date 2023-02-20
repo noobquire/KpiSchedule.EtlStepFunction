@@ -5,12 +5,15 @@ using KpiSchedule.Common.Exceptions;
 using KpiSchedule.Common.Models.RozKpiApi;
 using KpiSchedule.Common.Repositories;
 using KpiSchedule.EtlStepFunction.Models;
+using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 using ILogger = Serilog.ILogger;
 
 namespace KpiSchedule.EtlStepFunction.Services
 {
     public class GroupSchedulesEtlService
     {
+        private readonly EtlServiceOptions options;
         private readonly IRozKpiApiGroupsClient rozKpiApiGroupsClient;
         private readonly RozKpiGroupSchedulesRepository repository;
         private readonly ILogger logger;
@@ -20,81 +23,94 @@ namespace KpiSchedule.EtlStepFunction.Services
             IRozKpiApiGroupsClient rozKpiApiGroupsClient,
             ILogger logger,
             IMapper mapper,
-            RozKpiGroupSchedulesRepository repository)
+            RozKpiGroupSchedulesRepository repository,
+            IOptions<EtlServiceOptions> options)
         {
             this.rozKpiApiGroupsClient = rozKpiApiGroupsClient;
             this.logger = logger;
             this.mapper = mapper;
             this.repository = repository;
+            this.options = options.Value;
         }
 
-        public async Task<IEnumerable<RozKpiApiGroupSchedule>> ScrapeGroupSchedules(IEnumerable<string> groupPrefixesToScrape)
+        public async Task<(SchedulesEtlOutput output, IEnumerable<RozKpiApiGroupSchedule>)> ScrapeGroupSchedules(IEnumerable<string> groupPrefixesToScrape)
         {
-            var groupNameTasks = groupPrefixesToScrape.Select(async c => await rozKpiApiGroupsClient.GetGroups(c.ToString()));
-            var groupNames = new List<string>();
-            foreach (var groupNameTask in groupNameTasks)
+            int clientExceptions = 0, parserExceptions = 0, unhandledExceptions = 0;
+            var groupNames = new ConcurrentBag<string>();
+            await Parallel.ForEachAsync(groupPrefixesToScrape, new ParallelOptions
             {
-                var groupNamesForPrefix = await groupNameTask;
-                groupNames.AddRange(groupNamesForPrefix.Data);
-            }
+                MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism,
+            }, async (prefix, token) =>
+            {
+                var groupNamesForPrefix = await rozKpiApiGroupsClient.GetGroups(prefix);
+                foreach (var groupName in groupNamesForPrefix.Data)
+                {
+                    groupNames.Add(groupName);
+                }
+            });
 
-            var groupScheduleIdTasks = groupNames.Select(async groupName =>
+            var groupScheduleIds = new ConcurrentBag<Guid>();
+            await Parallel.ForEachAsync(groupNames, new ParallelOptions
+            {
+                MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism,
+            }, async (groupName, token) =>
             {
                 try
                 {
-                    return (await rozKpiApiGroupsClient.GetGroupScheduleIds(groupName)).First();
+                    var groupScheduleIdsForName = await rozKpiApiGroupsClient.GetGroupScheduleIds(groupName);
+                    foreach (var groupScheduleId in groupScheduleIdsForName)
+                    {
+                        groupScheduleIds.Add(groupScheduleId);
+                    }
                 }
                 catch (KpiScheduleClientGroupNotFoundException)
                 {
-                    return Guid.Empty;
+                    Interlocked.Increment(ref clientExceptions);
+                    logger.Error("ScheduleId for group {groupName} not found", groupName);
+                }
+                catch
+                {
+                    Interlocked.Increment(ref unhandledExceptions);
+                    logger.Fatal("Unhandled error when getting scheduleId for {groupName}", groupName);
                 }
             });
 
-            var groupScheduleIds = new List<Guid>();
-            foreach (var groupScheduleIdTask in groupScheduleIdTasks)
+            var groupSchedules = new ConcurrentBag<RozKpiApiGroupSchedule>();
+            await Parallel.ForEachAsync(groupScheduleIds, new ParallelOptions
             {
-                var id = await groupScheduleIdTask;
-                if (id != Guid.Empty)
-                {
-                    groupScheduleIds.Add(id);
-                }
-            }
-            var groupScheduleTasks = groupScheduleIds.Select(async id =>
+                MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism
+            }, async (groupScheduleId, token) =>
             {
                 try
                 {
-                    var schedule = await rozKpiApiGroupsClient.GetGroupSchedule(id);
-                    return schedule;
+                    var schedule = await rozKpiApiGroupsClient.GetGroupSchedule(groupScheduleId);
+                    groupSchedules.Add(schedule);
                 }
                 catch (KpiScheduleParserException)
                 {
-                    return null;
+                    Interlocked.Increment(ref parserExceptions);
                 }
                 catch (KpiScheduleClientException)
                 {
-                    return null;
+                    Interlocked.Increment(ref clientExceptions);
                 }
                 catch (Exception)
                 {
-                    logger.Fatal("Caught an unhandled exception when trying to parse scheduleId {scheduleId}", id);
-                    return null;
+                    Interlocked.Increment(ref unhandledExceptions);
+                    logger.Fatal("Caught an unhandled exception when trying to parse scheduleId {scheduleId}", groupScheduleId);
                 }
             });
 
-            var groupSchedules = new List<RozKpiApiGroupSchedule>();
-
-            foreach (var groupScheduleTask in groupScheduleTasks)
+            var output = new SchedulesEtlOutput
             {
-                var groupSchedule = await groupScheduleTask;
-                if (groupSchedule != null)
-                {
-                    groupSchedules.Add(groupSchedule);
-                }
-            }
+                Count = groupSchedules.Count,
+                ParsedAt = DateTime.UtcNow,
+                ClientExceptions = clientExceptions,
+                ParserExceptions = parserExceptions,
+                UnhandledExceptions = unhandledExceptions
+            };
 
-            logger.Information("Parsed a total of {schedulesCount} group schedules", groupSchedules.Count);
-
-            return groupSchedules;
+            return (output, groupSchedules);
         }
 
         public async Task WriteGroupSchedulesToDynamoDb(IEnumerable<RozKpiApiGroupSchedule> schedules)

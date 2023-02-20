@@ -1,31 +1,30 @@
-service: kpi-schedule-etl-steps
+﻿service: kpi-schedule-etl-steps
 app: kpi-schedule
 frameworkVersion: '3'
 
+plugins:
+  - serverless-step-functions
+  - serverless-plugin-log-retention
+
 provider:
   name: aws
+  stage: ${opt:stage, 'dev'}
   runtime: dotnet6
   region: eu-central-1
-  memorySize: 1024
+  memorySize: 512
   timeout: 900
-
   # Lambda function's IAM Role
   iam:
     role:
       statements:
         - Effect: "Allow"
           Action:
-            - "s3:ListBucket"
-          Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
-        - Effect: "Allow"
-          Action:
-            - "s3:PutObject"
-          Resource:
-            Fn::Join:
-              - ""
-              - - "arn:aws:s3:::"
-                - "Ref" : "ServerlessDeploymentBucket"
-                - "/*"
+            - "dynamodb:*"
+          Resource: "arn:aws:dynamodb:${self:provider.region}:${self:custom.account}:table/RozKpi*"
+
+custom:
+  account: 251999958052
+  logRetentionInDays: 30
 
 # Service wide environment variables
 environment:
@@ -34,17 +33,71 @@ package:
   artifact: bin/deploy-package.zip
 
 functions: 
-  parse-roz-kpi-group-schedules:
-    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::ParseRozKpiGroupSchedulesTask
+  roz-kpi-group-schedules-etl:
+    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::RozKpiGroupSchedulesEtlTask
     
-  parse-roz-kpi-teacher-schedules:
-    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::ParseRozKpiTeacherSchedulesTask
+  roz-kpi-teacher-schedules-etl:
+    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::RozKpiTeacherSchedulesEtlTask
 
-  write-group-schedules-to-dynamodb:
-    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::PutGroupSchedulesToDynamoDbTask
-
-  write-teacher-schedules-to-dynamodb:
-    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::PutTeacherSchedulesToDynamoDbTask
+stepFunctions:
+  stateMachines:
+    KpiScheduleEtlSteps:
+      definition:
+        StartAt: Parallel
+        States:
+          Parallel:
+            Type: Parallel
+            End: true
+            Branches:
+            - StartAt: Extract Group Schedules from roz.kpi.ua
+              States:
+                Extract Group Schedules from roz.kpi.ua:
+                  Type: Task
+                  Resource: arn:aws:states:::lambda:invoke
+                  OutputPath: "$.Payload"
+                  Parameters:
+                    FunctionName: arn:aws:lambda:${self:provider.region}:${self:custom.account}:function:${self:service}-${self:provider.stage}-roz-kpi-group-schedules-etl:$LATEST
+                    Payload.$: $
+                  Retry:
+                  - ErrorEquals:
+                    - Lambda.ServiceException
+                    - Lambda.AWSLambdaException
+                    - Lambda.SdkClientException
+                    - Lambda.TooManyRequestsException
+                    IntervalSeconds: 2
+                    MaxAttempts: 6
+                    BackoffRate: 2
+                  - ErrorEquals: [TaskCanceledException]
+                    BackoffRate: 2
+                    IntervalSeconds: 10
+                    MaxAttempts: 5
+                    Comment: Retry on timeout from roz.kpi.ua
+                  End: true
+            - StartAt: Extract Teacher Schedules from roz.kpi.ua
+              States:
+                Extract Teacher Schedules from roz.kpi.ua:
+                  Type: Task
+                  Resource: arn:aws:states:::lambda:invoke
+                  OutputPath: "$.Payload"
+                  Parameters:
+                    FunctionName: arn:aws:lambda:${self:provider.region}:${self:custom.account}:function:${self:service}-${self:provider.stage}-roz-kpi-teacher-schedules-etl:$LATEST
+                    Payload.$: $
+                  Retry:
+                  - ErrorEquals:
+                    - Lambda.ServiceException
+                    - Lambda.AWSLambdaException
+                    - Lambda.SdkClientException
+                    - Lambda.TooManyRequestsException
+                    IntervalSeconds: 2
+                    MaxAttempts: 6
+                    BackoffRate: 2
+                  - ErrorEquals: [TaskCanceledException]
+                    BackoffRate: 2
+                    IntervalSeconds: 10
+                    MaxAttempts: 5
+                    Comment: Retry on timeout from roz.kpi.ua
+                  End: true
+    
     
 resources:
   Resources:

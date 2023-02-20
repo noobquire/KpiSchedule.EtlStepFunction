@@ -4,6 +4,9 @@ using KpiSchedule.Common.Entities.RozKpi;
 using KpiSchedule.Common.Exceptions;
 using KpiSchedule.Common.Models.RozKpiApi;
 using KpiSchedule.Common.Repositories;
+using KpiSchedule.EtlStepFunction.Models;
+using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 using ILogger = Serilog.ILogger;
 
 namespace KpiSchedule.EtlStepFunction.Services
@@ -14,87 +17,97 @@ namespace KpiSchedule.EtlStepFunction.Services
         private readonly RozKpiTeacherSchedulesRepository repository;
         private readonly ILogger logger;
         private readonly IMapper mapper;
+        private readonly EtlServiceOptions options;
 
         public TeacherSchedulesEtlService(
             IRozKpiApiTeachersClient rozKpiApiTeachersClient, 
             RozKpiTeacherSchedulesRepository repository,
             ILogger logger, 
-            IMapper mapper)
+            IMapper mapper,
+            IOptions<EtlServiceOptions> options)
         {
             this.rozKpiApiTeachersClient = rozKpiApiTeachersClient;
             this.repository = repository;
             this.logger = logger;
             this.mapper = mapper;
+            this.options = options.Value;
         }
 
-        public async Task<IEnumerable<RozKpiApiTeacherSchedule>> ScrapeTeacherSchedules(IEnumerable<string> teacherPrefixesToParse)
+        public async Task<(SchedulesEtlOutput, IEnumerable<RozKpiApiTeacherSchedule>)> ScrapeTeacherSchedules(IEnumerable<string> teacherPrefixesToParse)
         {
-            var teacherNameTasks = teacherPrefixesToParse.Select(async c => await rozKpiApiTeachersClient.GetTeachers(c.ToString()));
-            var teacherNames = new List<string>();
-            foreach (var teacherNameTask in teacherNameTasks)
+            int clientExceptions = 0, parserExceptions = 0, unhandledExceptions = 0;
+            var teacherNames = new ConcurrentBag<string>();
+            await Parallel.ForEachAsync(teacherPrefixesToParse, new ParallelOptions
             {
-                var teacherNamesForPrefix = await teacherNameTask;
-                teacherNames.AddRange(teacherNamesForPrefix.Data);
-            }
-
-            var teacherScheduleIdTasks = teacherNames.Select(async teacherName =>
+                MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism,
+            }, async (prefix, token) =>
             {
-                try
+                var teacherNamesForPrefix = await rozKpiApiTeachersClient.GetTeachers(prefix);
+                foreach (var teacherName in teacherNamesForPrefix.Data)
                 {
-                    return (await rozKpiApiTeachersClient.GetTeacherScheduleId(teacherName));
-                }
-                catch (Exception)
-                {
-                    logger.Error("Caught error when getting teacher scheduleId for {teacherName}", teacherName);
-                    return Guid.Empty;
+                    teacherNames.Add(teacherName);
                 }
             });
 
-            var teacherScheduleIds = new List<Guid>();
-            foreach (var teacherScheduleIdTask in teacherScheduleIdTasks)
+            var teacherScheduleIds = new ConcurrentBag<Guid>();
+            await Parallel.ForEachAsync(teacherNames, new ParallelOptions
             {
-                var id = await teacherScheduleIdTask;
-                if (id != Guid.Empty)
-                {
-                    teacherScheduleIds.Add(id);
-                }
-            }
-            var teacherScheduleTasks = teacherScheduleIds.Select(async id =>
+                MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism,
+            }, async (teacherName, token) =>
             {
                 try
                 {
-                    var schedule = await rozKpiApiTeachersClient.GetTeacherSchedule(id);
-                    return schedule;
+                    var teacherScheduleId = await rozKpiApiTeachersClient.GetTeacherScheduleId(teacherName);
+                    teacherScheduleIds.Add(teacherScheduleId);
+                }
+                catch (KpiScheduleClientGroupNotFoundException) // BUG: create a separate exception for teachers
+                {
+                    Interlocked.Increment(ref clientExceptions);
+                    logger.Error("ScheduleId for teacher {teacherName} not found", teacherName);
+                }
+                catch
+                {
+                    Interlocked.Increment(ref unhandledExceptions);
+                    logger.Fatal("Unhandled error when getting scheduleId for {teacherName}", teacherName);
+                }
+            });
+
+            var teacherSchedules = new ConcurrentBag<RozKpiApiTeacherSchedule>();
+            await Parallel.ForEachAsync(teacherScheduleIds, new ParallelOptions
+            {
+                MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism
+            }, async (teacherScheduleId, token) =>
+            {
+                try
+                {
+                    var schedule = await rozKpiApiTeachersClient.GetTeacherSchedule(teacherScheduleId);
+                    teacherSchedules.Add(schedule);
                 }
                 catch (KpiScheduleParserException)
                 {
-                    return null;
+                    Interlocked.Increment(ref parserExceptions);
                 }
                 catch (KpiScheduleClientException)
                 {
-                    return null;
+                    Interlocked.Increment(ref clientExceptions);
                 }
                 catch (Exception)
                 {
-                    logger.Fatal("Caught an unhandled exception when trying to parse scheduleId {scheduleId}", id);
-                    return null;
+                    Interlocked.Increment(ref unhandledExceptions);
+                    logger.Fatal("Caught an unhandled exception when trying to parse scheduleId {scheduleId}", teacherScheduleId);
                 }
             });
 
-            var teacherSchedules = new List<RozKpiApiTeacherSchedule>();
-
-            foreach (var teacherScheduleTask in teacherScheduleTasks)
+            var output = new SchedulesEtlOutput
             {
-                var teacherSchedule = await teacherScheduleTask;
-                if (teacherSchedule != null)
-                {
-                    teacherSchedules.Add(teacherSchedule);
-                }
-            }
+                Count = teacherSchedules.Count,
+                ParsedAt = DateTime.UtcNow,
+                ClientExceptions = clientExceptions,
+                ParserExceptions = parserExceptions,
+                UnhandledExceptions = unhandledExceptions
+            };
 
-            logger.Information("Parsed a total of {schedulesCount} teacher schedules", teacherSchedules.Count);
-
-            return teacherSchedules;
+            return (output, teacherSchedules);
         }
 
         public async Task WriteTeacherSchedulesToDynamoDb(IEnumerable<RozKpiApiTeacherSchedule> schedules)

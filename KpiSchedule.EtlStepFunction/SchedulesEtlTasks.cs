@@ -1,7 +1,6 @@
 ﻿using Amazon.Lambda.Core;
 using KpiSchedule.Common.Clients;
 using KpiSchedule.Common.Mappers;
-using KpiSchedule.Common.Models.RozKpiApi;
 using KpiSchedule.Common.ServiceCollectionExtensions;
 using KpiSchedule.EtlStepFunction;
 using KpiSchedule.EtlStepFunction.Models;
@@ -11,7 +10,6 @@ using KpiSchedule.Common.Clients.Interfaces;
 using KpiSchedule.Common.Entities.RozKpi;
 using KpiSchedule.Common.Repositories;
 using KpiSchedule.EtlStepFunction.Services;
-using AutoMapper;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(SchedulesJsonSerializer))]
@@ -33,6 +31,7 @@ public class SchedulesEtlTasks
             .AddJsonFile("appsettings.json")
             .Build();
         var serviceProvider = new ServiceCollection()
+            .Configure<EtlServiceOptions>(config.GetSection("EtlService"))
             .AddRozKpiParsers()
             .AddSerilogConsoleLogger()
             //.AddSerilogCloudWatchLogger(config)
@@ -52,48 +51,21 @@ public class SchedulesEtlTasks
     }
 
     [LambdaSerializer(typeof(SchedulesJsonSerializer))]
-    public async Task<SchedulesEtlOutput<RozKpiApiGroupSchedule>> ParseRozKpiGroupSchedulesTask(IList<string> groupPrefixesToParse)
+    public async Task<SchedulesEtlOutput> RozKpiGroupSchedulesEtlTask(IList<string> groupPrefixesToParse)
     {
-        var groupSchedules = await groupSchedulesEtlService.ScrapeGroupSchedules(groupPrefixesToParse);
-
-        var output = new SchedulesEtlOutput<RozKpiApiGroupSchedule>()
-        {
-            Schedules = groupSchedules.ToList(),
-            ParsedAt = DateTime.UtcNow,
-            Count = groupSchedules.Count()
-        };
-
-        return output;
-    }
-
-    [LambdaSerializer(typeof(SchedulesJsonSerializer))]
-    public async Task<SchedulesEtlOutput<RozKpiApiTeacherSchedule>> ParseRozKpiTeacherSchedulesTask(IList<string> teacherPrefixesToParse)
-    {
-        var teacherSchedules = await teacherSchedulesEtlService.ScrapeTeacherSchedules(teacherPrefixesToParse);
-
-        var output = new SchedulesEtlOutput<RozKpiApiTeacherSchedule>()
-        {
-            Schedules = teacherSchedules.ToList(),
-            ParsedAt = DateTime.UtcNow,
-            Count = teacherSchedules.Count()
-        };
-
-        return output;
-    }
-
-    [LambdaSerializer(typeof(SchedulesJsonSerializer))]
-    public async Task PutGroupSchedulesToDynamoDbTask(SchedulesEtlOutput<RozKpiApiGroupSchedule> schedules)
-    {
-        var groupSchedules = schedules.Schedules;
+        var (output, groupSchedules) = await groupSchedulesEtlService.ScrapeGroupSchedules(groupPrefixesToParse);
 
         await groupSchedulesEtlService.WriteGroupSchedulesToDynamoDb(groupSchedules);
+
+        return output;
     }
 
     [LambdaSerializer(typeof(SchedulesJsonSerializer))]
-    public async Task PutTeacherSchedulesToDynamoDbTask(SchedulesEtlOutput<RozKpiApiTeacherSchedule> schedules)
+    public async Task<SchedulesEtlOutput> RozKpiTeacherSchedulesEtlTask(IList<string> teacherPrefixesToParse)
     {
-        var teacherSchedules = schedules.Schedules;
-
+        var (output, teacherSchedules) = await teacherSchedulesEtlService.ScrapeTeacherSchedules(teacherPrefixesToParse);
         await teacherSchedulesEtlService.WriteTeacherSchedulesToDynamoDb(teacherSchedules);
+
+        return output;
     }
 }
