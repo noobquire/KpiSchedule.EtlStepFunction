@@ -17,12 +17,17 @@ jobs:
         node-version: [16.x]
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     
     - name: Setup .NET 6
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 6.0.x  
+        
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
         
     - name: Install AWS Lambda tools for dotnet CLI
       run: dotnet tool install -g Amazon.Lambda.Tools
@@ -35,12 +40,6 @@ jobs:
       with:
         role-to-assume: arn:aws:iam::251999958052:role/kpi-schedule-github-actions-role
         aws-region: eu-central-1
-    
-    - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
     
     - name: serverless deploy
       uses: serverless/github-action@v3.1
