@@ -28,7 +28,7 @@ jobs:
       run: cd ./KpiSchedule.EtlStepFunction && ls -la
       
     - name: Build deployment package
-      run: dotnet lambda package -c Release -f net6.0 -o bin/deploy-package.zip
+      run: . ./build.sh
     
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@master
