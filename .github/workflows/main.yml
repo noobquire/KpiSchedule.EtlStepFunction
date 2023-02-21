@@ -31,7 +31,7 @@ jobs:
     - run: dotnet build -c Release
       
     - name: Build deployment package
-      run: dotnet lambda package -c Release -f net6.0 -o bin/deploy-package.zip
+      run: dotnet lambda package -c Release -f net6.0 -o deploy-package.zip
     
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@master
