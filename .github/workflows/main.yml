@@ -22,7 +22,7 @@ jobs:
         dotnet-version: 6.0.x  
         
     - name: Install AWS Lambda tools for dotnet CLI
-      run: dotnet tool install -g Amazon.Lambda.Tools --framework net6.0
+      run: dotnet tool install -g Amazon.Lambda.Tools
       
     - name: CD to project folder
       run: cd ./KpiSchedule.EtlStepFunction && ls -la
