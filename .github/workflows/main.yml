@@ -9,6 +9,9 @@ jobs:
   deploy:
     name: deploy
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         node-version: [16.x]
@@ -38,14 +41,14 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
-    - run: npm ci
     
     - name: serverless deploy
       uses: serverless/github-action@v3.1
       with:
         args: |
           -c 
-          "serverless plugin install -n serverless-step-functions &&
+          "cd ./KpiSchedule.EtlStepFunction &&
+          serverless plugin install -n serverless-step-functions &&
           serverless plugin install -n serverless-plugin-log-retention &&
           serverless deploy"
         entrypoint: /bin/sh
