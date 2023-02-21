@@ -24,11 +24,8 @@ jobs:
     - name: Install AWS Lambda tools for dotnet CLI
       run: dotnet tool install -g Amazon.Lambda.Tools
       
-    - name: CD to project folder
-      run: cd ./KpiSchedule.EtlStepFunction && ls -la
-      
     - name: Build deployment package
-      run: . ./build.sh
+      run: cd ./KpiSchedule.EtlStepFunction && dotnet lambda package -c Release -f net6.0 -o bin/deploy-package.zip
     
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@master
