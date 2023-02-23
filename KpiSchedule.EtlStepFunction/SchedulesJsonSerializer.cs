@@ -14,7 +14,6 @@ namespace KpiSchedule.EtlStepFunction
         {
             options.Encoder = JavaScriptEncoder.Create(UnicodeRanges.All);
             options.WriteIndented = true;
-            options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         }
     }
 }
