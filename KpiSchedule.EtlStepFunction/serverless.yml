@@ -105,18 +105,18 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         AttributeDefinitions:
-        - AttributeName: groupName
+        - AttributeName: GroupName
           AttributeType: S
-        - AttributeName: scheduleId
+        - AttributeName: ScheduleId
           AttributeType: S
-        TableName: RozKpiGroupSchedules
+        TableName: KpiSchedule-GroupSchedules
         KeySchema:
-        - AttributeName: scheduleId
+        - AttributeName: ScheduleId
           KeyType: HASH
         GlobalSecondaryIndexes:
-        - IndexName: groupName-index
+        - IndexName: GroupName-index
           KeySchema:
-          - AttributeName: groupName
+          - AttributeName: GroupName
             KeyType: HASH
           Projection:
             ProjectionType: KEYS_ONLY
@@ -126,19 +126,35 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         AttributeDefinitions:
-        - AttributeName: teacherName
+        - AttributeName: TeacherName
           AttributeType: S
-        - AttributeName: scheduleId
+        - AttributeName: ScheduleId
           AttributeType: S
-        TableName: RozKpiTeacherSchedules
+        TableName: KpiSchedule-TeacherSchedules
         KeySchema:
-        - AttributeName: scheduleId
+        - AttributeName: ScheduleId
           KeyType: HASH
         GlobalSecondaryIndexes:
-        - IndexName: teacherName-index
+        - IndexName: TeacherName-index
           KeySchema:
-          - AttributeName: teacherName
+          - AttributeName: TeacherName
             KeyType: HASH
           Projection:
             ProjectionType: KEYS_ONLY
+        BillingMode: PAY_PER_REQUEST
+
+    StudentSchedulesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: OwnerId
+          AttributeType: S
+        - AttributeName: ScheduleId
+          AttributeType: S
+        TableName: KpiSchedule-StudentSchedules
+        KeySchema:
+        - AttributeName: OwnerId
+          KeyType: HASH
+        - AttributeName: ScheduleId
+          KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
