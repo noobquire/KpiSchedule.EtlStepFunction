@@ -20,7 +20,7 @@ provider:
         - Effect: "Allow"
           Action:
             - "dynamodb:*"
-          Resource: "arn:aws:dynamodb:${self:provider.region}:${self:custom.account}:table/RozKpi*"
+          Resource: "arn:aws:dynamodb:${self:provider.region}:${self:custom.account}:table/KpiSchedule*"
 
 custom:
   account: 251999958052
