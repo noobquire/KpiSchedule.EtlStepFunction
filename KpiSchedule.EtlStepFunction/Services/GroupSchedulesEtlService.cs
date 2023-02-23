@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using KpiSchedule.Common.Clients.Interfaces;
-using KpiSchedule.Common.Entities.RozKpi;
+using KpiSchedule.Common.Entities;
 using KpiSchedule.Common.Exceptions;
 using KpiSchedule.Common.Models.RozKpiApi;
 using KpiSchedule.Common.Repositories;
@@ -15,7 +15,7 @@ namespace KpiSchedule.EtlStepFunction.Services
     {
         private readonly EtlServiceOptions options;
         private readonly IRozKpiApiGroupsClient rozKpiApiGroupsClient;
-        private readonly RozKpiGroupSchedulesRepository repository;
+        private readonly GroupSchedulesRepository repository;
         private readonly ILogger logger;
         private readonly IMapper mapper;
 
@@ -23,7 +23,7 @@ namespace KpiSchedule.EtlStepFunction.Services
             IRozKpiApiGroupsClient rozKpiApiGroupsClient,
             ILogger logger,
             IMapper mapper,
-            RozKpiGroupSchedulesRepository repository,
+            GroupSchedulesRepository repository,
             IOptions<EtlServiceOptions> options)
         {
             this.rozKpiApiGroupsClient = rozKpiApiGroupsClient;

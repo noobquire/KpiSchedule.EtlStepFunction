@@ -7,7 +7,7 @@ using KpiSchedule.EtlStepFunction.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using KpiSchedule.Common.Clients.Interfaces;
-using KpiSchedule.Common.Entities.RozKpi;
+using KpiSchedule.Common.Entities;
 using KpiSchedule.Common.Repositories;
 using KpiSchedule.EtlStepFunction.Services;
 
@@ -40,8 +40,8 @@ public class SchedulesEtlTasks
             .AddAutoMapper(
                 typeof(RozKpiApiGroupSchedule_GroupScheduleEntity_MapperProfile),
                 typeof(RozKpiApiTeacherSchedule_TeacherScheduleEntity_MapperProfile))
-            .AddDynamoDbSchedulesRepository<RozKpiGroupSchedulesRepository, GroupScheduleEntity>(config)
-            .AddDynamoDbSchedulesRepository<RozKpiTeacherSchedulesRepository, TeacherScheduleEntity>(config)
+            .AddDynamoDbSchedulesRepository<GroupSchedulesRepository, GroupScheduleEntity, GroupScheduleDayEntity, GroupSchedulePairEntity>(config)
+            .AddDynamoDbSchedulesRepository<TeacherSchedulesRepository, TeacherScheduleEntity, TeacherScheduleDayEntity, TeacherSchedulePairEntity>(config)
             .AddScoped<GroupSchedulesEtlService>()
             .AddScoped<TeacherSchedulesEtlService>()
             .BuildServiceProvider();

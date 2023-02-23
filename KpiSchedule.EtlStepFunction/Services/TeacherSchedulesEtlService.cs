@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using KpiSchedule.Common.Clients.Interfaces;
-using KpiSchedule.Common.Entities.RozKpi;
+using KpiSchedule.Common.Entities;
 using KpiSchedule.Common.Exceptions;
 using KpiSchedule.Common.Models.RozKpiApi;
 using KpiSchedule.Common.Repositories;
@@ -14,14 +14,14 @@ namespace KpiSchedule.EtlStepFunction.Services
     public class TeacherSchedulesEtlService
     {
         private readonly IRozKpiApiTeachersClient rozKpiApiTeachersClient;
-        private readonly RozKpiTeacherSchedulesRepository repository;
+        private readonly TeacherSchedulesRepository repository;
         private readonly ILogger logger;
         private readonly IMapper mapper;
         private readonly EtlServiceOptions options;
 
         public TeacherSchedulesEtlService(
             IRozKpiApiTeachersClient rozKpiApiTeachersClient, 
-            RozKpiTeacherSchedulesRepository repository,
+            TeacherSchedulesRepository repository,
             ILogger logger, 
             IMapper mapper,
             IOptions<EtlServiceOptions> options)
