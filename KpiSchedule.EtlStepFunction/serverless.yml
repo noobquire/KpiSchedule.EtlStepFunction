@@ -1,10 +1,10 @@
 ﻿service: kpi-schedule-etl-steps
 app: kpi-schedule
 frameworkVersion: '3'
-
 plugins:
   - serverless-step-functions
   - serverless-plugin-log-retention
+  - serverless-prune-plugin
 
 provider:
   name: aws
@@ -21,13 +21,17 @@ provider:
           Action:
             - "dynamodb:*"
           Resource: "arn:aws:dynamodb:${self:provider.region}:${self:custom.account}:table/KpiSchedule*"
+        - Effect: "Allow"
+          Action:
+            - "sqs:*"
+          Resource: "arn:aws:sqs:${self:provider.region}:${self:custom.account}:KpiSchedule*"
 
 custom:
   account: 251999958052
   logRetentionInDays: 30
-
-# Service wide environment variables
-environment:
+  prune:
+    automatic: true
+    number: 3
   
 package:
   artifact: bin/deploy-package.zip
@@ -39,64 +43,125 @@ functions:
   roz-kpi-teacher-schedules-etl:
     handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::RozKpiTeacherSchedulesEtlTask
 
+  iterate-and-sum-results-schedules-etl:
+    handler: KpiSchedule.EtlStepFunction::KpiSchedule.EtlStepFunction.SchedulesEtlTasks::IteratePrefixesAndSumResults
+
 stepFunctions:
   stateMachines:
-    KpiScheduleEtlSteps:
+    KpiSchedule-EtlSteps:
+      name: KpiScheduleEtlSteps
       definition:
-        StartAt: Parallel
+        StartAt: Chunk input and init iterator
         States:
-          Parallel:
+          Chunk input and init iterator:
+            Type: Pass
+            Next: Loop condition
+            Parameters:
+              PrefixChunks.$: States.ArrayPartition($.Prefixes, $.BatchSize)
+              Index: 0
+              Count.$: States.ArrayLength(States.ArrayPartition($.Prefixes, $.BatchSize))
+              GroupSchedules:
+                TotalParsed: 0
+                ParserExceptions: 0
+                ClientExceptions: 0
+                UnhandledExceptions: 0
+              TeacherSchedules:
+                TotalParsed: 0
+                ParserExceptions: 0
+                ClientExceptions: 0
+                UnhandledExceptions: 0
+          Loop condition:
+            Type: Choice
+            Choices:
+              - Variable: $.Index
+                NumericLessThanPath: $.Count
+                Comment: Continue loop
+                Next: Loop body
+            Default: Success
+          Success:
+            Type: Succeed
+          Loop body:
             Type: Parallel
-            End: true
             Branches:
-            - StartAt: Extract Group Schedules from roz.kpi.ua
-              States:
-                Extract Group Schedules from roz.kpi.ua:
-                  Type: Task
-                  Resource: arn:aws:states:::lambda:invoke
-                  OutputPath: "$.Payload"
-                  Parameters:
-                    FunctionName: arn:aws:lambda:${self:provider.region}:${self:custom.account}:function:${self:service}-${self:provider.stage}-roz-kpi-group-schedules-etl:$LATEST
-                    Payload.$: $
-                  Retry:
-                  - ErrorEquals:
-                    - Lambda.ServiceException
-                    - Lambda.AWSLambdaException
-                    - Lambda.SdkClientException
-                    - Lambda.TooManyRequestsException
-                    IntervalSeconds: 2
-                    MaxAttempts: 6
-                    BackoffRate: 2
-                  - ErrorEquals: [TaskCanceledException]
-                    BackoffRate: 2
-                    IntervalSeconds: 10
-                    MaxAttempts: 5
-                    Comment: Retry on timeout from roz.kpi.ua
-                  End: true
-            - StartAt: Extract Teacher Schedules from roz.kpi.ua
-              States:
-                Extract Teacher Schedules from roz.kpi.ua:
-                  Type: Task
-                  Resource: arn:aws:states:::lambda:invoke
-                  OutputPath: "$.Payload"
-                  Parameters:
-                    FunctionName: arn:aws:lambda:${self:provider.region}:${self:custom.account}:function:${self:service}-${self:provider.stage}-roz-kpi-teacher-schedules-etl:$LATEST
-                    Payload.$: $
-                  Retry:
-                  - ErrorEquals:
-                    - Lambda.ServiceException
-                    - Lambda.AWSLambdaException
-                    - Lambda.SdkClientException
-                    - Lambda.TooManyRequestsException
-                    IntervalSeconds: 2
-                    MaxAttempts: 6
-                    BackoffRate: 2
-                  - ErrorEquals: [TaskCanceledException]
-                    BackoffRate: 2
-                    IntervalSeconds: 10
-                    MaxAttempts: 5
-                    Comment: Retry on timeout from roz.kpi.ua
-                  End: true
+              - StartAt: Extract Group Schedules from roz.kpi.ua
+                States:
+                  Extract Group Schedules from roz.kpi.ua:
+                    Type: Task
+                    Resource: arn:aws:states:::lambda:invoke
+                    OutputPath: $.Payload
+                    Parameters:
+                      FunctionName: >-
+                        arn:aws:lambda:${self:provider.region}:${self:custom.account}:function:kpi-schedule-etl-steps-dev-roz-kpi-group-schedules-etl:$LATEST
+                      Payload.$: $
+                    Retry:
+                      - ErrorEquals:
+                          - Lambda.ServiceException
+                          - Lambda.AWSLambdaException
+                          - Lambda.SdkClientException
+                          - Lambda.TooManyRequestsException
+                        IntervalSeconds: 2
+                        MaxAttempts: 6
+                        BackoffRate: 2
+                      - ErrorEquals:
+                          - TaskCanceledException
+                        BackoffRate: 2
+                        IntervalSeconds: 10
+                        MaxAttempts: 5
+                        Comment: Retry on timeout from roz.kpi.ua
+                    End: true
+              - StartAt: Extract Teacher Schedules from roz.kpi.ua
+                States:
+                  Extract Teacher Schedules from roz.kpi.ua:
+                    Type: Task
+                    Resource: arn:aws:states:::lambda:invoke
+                    OutputPath: $.Payload
+                    Parameters:
+                      FunctionName: >-
+                        arn:aws:lambda:${self:provider.region}:${self:custom.account}:function:kpi-schedule-etl-steps-dev-roz-kpi-teacher-schedules-etl:$LATEST
+                      Payload.$: $
+                    Retry:
+                      - ErrorEquals:
+                          - Lambda.ServiceException
+                          - Lambda.AWSLambdaException
+                          - Lambda.SdkClientException
+                          - Lambda.TooManyRequestsException
+                        IntervalSeconds: 2
+                        MaxAttempts: 6
+                        BackoffRate: 2
+                      - ErrorEquals:
+                          - TaskCanceledException
+                        BackoffRate: 2
+                        IntervalSeconds: 10
+                        MaxAttempts: 5
+                        Comment: Retry on timeout from roz.kpi.ua
+                    End: true
+            Next: Iterate and sum results
+            Parameters:
+              Prefixes.$: States.ArrayGetItem($.PrefixChunks, $.Index)
+            ResultPath: $.IterationOutput
+            ResultSelector:
+              GroupSchedules.$: $[0]
+              TeacherSchedules.$: $[1]
+          Iterate and sum results:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            OutputPath: $.Payload
+            Parameters:
+              Payload.$: $
+              FunctionName: >-
+                arn:aws:lambda:${self:provider.region}:${self:custom.account}:function:kpi-schedule-etl-steps-dev-iterate-and-sum-results-schedules-etl:$LATEST
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+            Next: Loop condition
+        Comment: Processing completed
+
     
     
 resources:
@@ -158,3 +223,8 @@ resources:
         - AttributeName: ScheduleId
           KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
+  
+  Outputs:
+    KpiScheduleEtlSteps:
+      Value:
+        Ref: KpiScheduleEtlSteps

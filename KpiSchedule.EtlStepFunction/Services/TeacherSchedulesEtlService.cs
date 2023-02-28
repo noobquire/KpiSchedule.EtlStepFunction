@@ -5,6 +5,7 @@ using KpiSchedule.Common.Exceptions;
 using KpiSchedule.Common.Models.RozKpiApi;
 using KpiSchedule.Common.Repositories;
 using KpiSchedule.EtlStepFunction.Models;
+using KpiSchedule.EtlStepFunction.Options;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using ILogger = Serilog.ILogger;
@@ -33,7 +34,7 @@ namespace KpiSchedule.EtlStepFunction.Services
             this.options = options.Value;
         }
 
-        public async Task<(SchedulesEtlOutput, IEnumerable<RozKpiApiTeacherSchedule>)> ScrapeTeacherSchedules(IEnumerable<string> teacherPrefixesToParse)
+        public async Task<(SchedulesEtlParserOutput, IEnumerable<RozKpiApiTeacherSchedule>)> ScrapeTeacherSchedules(IEnumerable<string> teacherPrefixesToParse)
         {
             int clientExceptions = 0, parserExceptions = 0, unhandledExceptions = 0;
             var teacherNames = new ConcurrentBag<string>();
@@ -98,10 +99,9 @@ namespace KpiSchedule.EtlStepFunction.Services
                 }
             });
 
-            var output = new SchedulesEtlOutput
+            var output = new SchedulesEtlParserOutput
             {
                 Count = teacherSchedules.Count,
-                ParsedAt = DateTime.UtcNow,
                 ClientExceptions = clientExceptions,
                 ParserExceptions = parserExceptions,
                 UnhandledExceptions = unhandledExceptions

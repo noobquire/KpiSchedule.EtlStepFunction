@@ -1,4 +1,4 @@
-﻿namespace KpiSchedule.EtlStepFunction.Services
+﻿namespace KpiSchedule.EtlStepFunction.Options
 {
     public class EtlServiceOptions
     {
