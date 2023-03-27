@@ -1,7 +1,7 @@
-﻿using AutoMapper;
-using KpiSchedule.Common.Clients.Interfaces;
+﻿using KpiSchedule.Common.Clients.Interfaces;
 using KpiSchedule.Common.Entities;
 using KpiSchedule.Common.Exceptions;
+using KpiSchedule.Common.Mappers;
 using KpiSchedule.Common.Models.RozKpiApi;
 using KpiSchedule.Common.Repositories;
 using KpiSchedule.EtlStepFunction.Models;
@@ -17,20 +17,17 @@ namespace KpiSchedule.EtlStepFunction.Services
         private readonly IRozKpiApiTeachersClient rozKpiApiTeachersClient;
         private readonly TeacherSchedulesRepository repository;
         private readonly ILogger logger;
-        private readonly IMapper mapper;
         private readonly EtlServiceOptions options;
 
         public TeacherSchedulesEtlService(
             IRozKpiApiTeachersClient rozKpiApiTeachersClient, 
             TeacherSchedulesRepository repository,
-            ILogger logger, 
-            IMapper mapper,
+            ILogger logger,
             IOptions<EtlServiceOptions> options)
         {
             this.rozKpiApiTeachersClient = rozKpiApiTeachersClient;
             this.repository = repository;
             this.logger = logger;
-            this.mapper = mapper;
             this.options = options.Value;
         }
 
@@ -112,7 +109,7 @@ namespace KpiSchedule.EtlStepFunction.Services
 
         public async Task WriteTeacherSchedulesToDynamoDb(IEnumerable<RozKpiApiTeacherSchedule> schedules)
         {
-            var mappedSchedules = mapper!.Map<IEnumerable<TeacherScheduleEntity>>(schedules);
+            var mappedSchedules = schedules.Select(s => s.MapToEntity()).ToList();
 
             logger.Information("Writing {schedulesCount} schedules to DynamoDb", schedules.Count());
             await repository!.BatchPutSchedules(mappedSchedules);
