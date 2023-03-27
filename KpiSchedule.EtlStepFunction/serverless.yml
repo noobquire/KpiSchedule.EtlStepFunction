@@ -52,7 +52,7 @@ stepFunctions:
       events:
         - schedule:
           rate:
-            - cron(0 4 * * SAT *) # run every Saturday at 4 AM UTC
+            - cron(0 4 ? * SAT *) # run every Saturday at 4 AM UTC
           enabled: true
           input: 
             Prefixes: ["а","б","в","г","д","е","є","ж","з","и","і","ї","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ю","я"]
