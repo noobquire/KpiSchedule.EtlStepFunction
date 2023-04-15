@@ -221,16 +221,21 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         AttributeDefinitions:
-        - AttributeName: OwnerId
-          AttributeType: S
         - AttributeName: ScheduleId
+          AttributeType: S
+        - AttributeName: OwnerId
           AttributeType: S
         TableName: KpiSchedule-StudentSchedules
         KeySchema:
-        - AttributeName: OwnerId
-          KeyType: HASH
         - AttributeName: ScheduleId
-          KeyType: RANGE
+          KeyType: HASH
+        GlobalSecondaryIndexes:
+        - IndexName: OwnerId-index
+          KeySchema:
+          - AttributeName: OwnerId
+            KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
         BillingMode: PAY_PER_REQUEST
   
   Outputs:
