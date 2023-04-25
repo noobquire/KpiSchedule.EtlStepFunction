@@ -3,6 +3,7 @@ using KpiSchedule.Common.Entities;
 using KpiSchedule.Common.Exceptions;
 using KpiSchedule.Common.Mappers;
 using KpiSchedule.Common.Models.RozKpiApi;
+using KpiSchedule.Common.Models.RozKpiApi.Teacher;
 using KpiSchedule.Common.Repositories;
 using KpiSchedule.EtlStepFunction.Models;
 using KpiSchedule.EtlStepFunction.Options;

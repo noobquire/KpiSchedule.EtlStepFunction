@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <Nullable>disable</Nullable>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AWSProjectType>Lambda</AWSProjectType>
     <!-- This property makes the build directory similar to a publish directory and helps the AWS .NET Lambda Mock Test Tool find project dependencies. -->
@@ -16,9 +16,9 @@
     <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.3.1" />
     <PackageReference Include="Amazon.Lambda.SQSEvents" Version="2.1.0" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.5" />
-    <PackageReference Include="AWSSDK.SQS" Version="3.7.100.108" />
-    <PackageReference Include="AWSSDK.StepFunctions" Version="3.7.102.81" />
-    <PackageReference Include="KpiSchedule.Common" Version="0.7.1" />
+    <PackageReference Include="AWSSDK.SQS" Version="3.7.100.118" />
+    <PackageReference Include="AWSSDK.StepFunctions" Version="3.7.102.91" />
+    <PackageReference Include="KpiSchedule.Common" Version="1.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
